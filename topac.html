@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Çevrimiçi Geleneksel Topaç Oyunu - Renkli & Kesintisiz</title>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        /* TOPRAK VE AHŞAP TEMASI */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #dcedc8;
+            background-image: radial-gradient(#aed581 2px, transparent 2px);
+            background-size: 30px 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 { color: #33691e; margin-bottom: 5px; text-align: center; text-transform: uppercase; letter-spacing: 2px;}
+        
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(51, 105, 30, 0.2);
+            border: 4px solid #558b2f;
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+            margin-top: 20px;
+        }
+        
+        input[type="text"] {
+            width: 90%;
+            padding: 12px;
+            margin: 10px 0;
+            font-size: 1.1rem;
+            border-radius: 6px;
+            border: 2px solid #8bc34a;
+            background-color: #f1f8e9;
+            outline: none;
+            text-align: center;
+            color: #33691e;
+            font-weight: bold;
+        }
+        input[type="text"]:focus { border-color: #33691e; }
+        
+        button {
+            background-color: #e65100;
+            color: white;
+            border: 2px solid #bf360c;
+            cursor: pointer;
+            font-weight: bold;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 1.1rem;
+            width: 95%;
+            margin-top: 15px;
+            transition: 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button:hover { background-color: #bf360c; transform: translateY(-2px); }
+        button:disabled { background-color: #9e9e9e; border-color: #757575; cursor: not-allowed; transform: none; box-shadow:none;}
+
+        #game-screen, #result-screen { display: none; }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #558b2f;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-bottom: 4px solid #33691e;
+        }
+
+        #turn-status { font-size: 1.3rem; font-weight: bold; margin: 10px 0; color: #e65100; min-height: 30px; }
+
+        /* CANLI KRONOMETRE TASARIMI */
+        .live-stopwatch {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 3rem;
+            font-weight: 900;
+            color: #d32f2f;
+            background: #ffccbc;
+            padding: 10px 30px;
+            border-radius: 15px;
+            border: 4px solid #b71c1c;
+            display: none; 
+            margin: 15px auto;
+            width: fit-content;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.2);
+        }
+
+        /* TEK TOPAÇ ARENASI */
+        .arena-container {
+            width: 300px;
+            height: 300px;
+            background: #c5e1a5;
+            border: 5px solid #33691e;
+            border-radius: 50%;
+            margin: 10px auto 20px auto;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: inset 0 0 40px rgba(51, 105, 30, 0.4);
+            overflow: hidden;
+        }
+
+        /* DETAYLI TEK TOPAÇ MODELİ VE RENKLERİ */
+        .topac-wrapper {
+            position: absolute;
+            transition: top 0.3s ease-in, transform 0.5s ease-out;
+            display: none; 
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+        }
+
+        .topac-head {
+            width: 60px;
+            height: 25px;
+            border-radius: 30px 30px 0 0;
+            border-width: 2px;
+            border-style: solid;
+            border-bottom: none;
+            box-shadow: inset 0 -5px 10px rgba(0,0,0,0.2);
+        }
+
+        .topac-body {
+            width: 0;
+            height: 0;
+            border-left: 32px solid transparent;
+            border-right: 32px solid transparent;
+            position: relative;
+        }
+
+        .topac-nail {
+            width: 6px;
+            height: 15px;
+            background: #616161;
+            border-radius: 0 0 5px 5px;
+            margin-top: -2px;
+        }
+
+        /* DİNAMİK OYUNCU RENKLERİ */
+        /* 1. Oyuncu: Sarı (Varsayılan) */
+        .topac-yellow .topac-head { background: #ffb300; border-color: #e65100; }
+        .topac-yellow .topac-body { border-top: 60px solid #ffca28; }
+        
+        /* 2. Oyuncu: Mavi */
+        .topac-blue .topac-head { background: #29b6f6; border-color: #0277bd; }
+        .topac-blue .topac-body { border-top: 60px solid #4fc3f7; }
+        
+        /* 3. Oyuncu: Kırmızı */
+        .topac-red .topac-head { background: #ef5350; border-color: #c62828; }
+        .topac-red .topac-body { border-top: 60px solid #e57373; }
+        
+        /* 4. Oyuncu: Yeşil */
+        .topac-green .topac-head { background: #66bb6a; border-color: #2e7d32; }
+        .topac-green .topac-body { border-top: 60px solid #81c784; }
+
+        /* ANİMASYON SINIFLARI */
+        .anim-winding { display: flex; top: 20%; animation: winding-shake 0.4s infinite alternate ease-in-out; }
+        .anim-drop { display: flex; top: 40%; }
+        .anim-sinek { animation: spin-fast 0.2s linear infinite; }
+        .anim-gafa { animation: spin-wobble 0.6s linear infinite; }
+        .anim-kabak { transform: translateY(30px) rotateZ(85deg); top: 50%; }
+
+        @keyframes winding-shake {
+            0% { transform: rotate(-8deg) scale(1.05); }
+            100% { transform: rotate(8deg) scale(0.95); }
+        }
+        @keyframes spin-fast { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(360deg); } }
+        @keyframes spin-wobble {
+            0% { transform: rotateY(0deg) rotateZ(15deg); }
+            50% { transform: rotateY(180deg) rotateZ(-15deg); }
+            100% { transform: rotateY(360deg) rotateZ(15deg); }
+        }
+
+        /* Kaytan Çekme Barı (Güç) */
+        .aim-container {
+            width: 90%;
+            height: 28px;
+            background: #cfd8dc;
+            border-radius: 14px;
+            margin: 20px auto;
+            position: relative;
+            overflow: hidden;
+            border: 3px solid #558b2f;
+            display: flex;
+        }
+        .aim-zone { height: 100%; }
+        .zone-miss { width: 35%; background: #ef5350; } 
+        .zone-hit { width: 15%; background: #ffca28; }  
+        .zone-perfect { width: 20%; background: #66bb6a; } 
+
+        .pointer {
+            width: 8px;
+            height: 100%;
+            background: #212121;
+            position: absolute;
+            left: 0%;
+            box-shadow: 0 0 8px rgba(0,0,0,0.8);
+            border-radius: 4px;
+        }
+
+        .report-text { font-size: 1.2rem; font-weight: bold; color: #d84315; margin: 10px 0; min-height: 35px; }
+
+        .player-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin: 15px 0; }
+        .player-badge { background: #f1f8e9; border: 2px solid #8bc34a; padding: 6px 15px; border-radius: 20px; font-weight: bold; color: #33691e; transition: all 0.3s; }
+        
+        /* Dinamik Renkli Aktif Oyuncu Etiketleri */
+        .player-badge.active-yellow { background: #ffca28; color: #e65100; border-color: #ffb300; transform: scale(1.1); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .player-badge.active-blue { background: #81d4fa; color: #01579b; border-color: #29b6f6; transform: scale(1.1); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .player-badge.active-red { background: #ef9a9a; color: #b71c1c; border-color: #ef5350; transform: scale(1.1); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .player-badge.active-green { background: #a5d6a7; color: #1b5e20; border-color: #66bb6a; transform: scale(1.1); box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        
+        .table-wrapper { overflow-x: auto; margin-top: 15px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 2px solid #8bc34a; padding: 10px; text-align: center; }
+        th { background-color: #558b2f; color: #fff; }
+        td { background-color: #fff; font-weight: bold; color: #33691e; font-size: 1.2rem;}
+
+        .skip-btn {
+            background-color: #ff9800;
+            border: 2px solid #ef6c00;
+            color: white;
+            font-size: 0.85rem;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
+            width: auto;
+            margin-top: 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .skip-btn:hover { background-color: #ef6c00; }
+    </style>
+</head>
+<body>
+
+    <h1>Topaç (Develeme) Oyunu</h1>
+
+    <div id="login-screen" class="panel">
+        <h3 style="color: #33691e;">Meydana Katıl</h3>
+        <input type="text" id="username-input" placeholder="Adınızı girin..." maxlength="12">
+        <input type="text" id="room-input" placeholder="Oda Kodu (Örn: 2026)..." maxlength="6">
+        <button onclick="joinRoom()">Daireye Katıl</button>
+        <p style="font-size: 0.85rem; color: #558b2f; margin-top: 15px;">Aynı oda koduyla sınırsız arkadaşınız katılabilir.</p>
+    </div>
+
+    <div id="waiting-screen" class="panel" style="display:none;">
+        <h3 id="waiting-text" style="color:#33691e;">Rakipler Bekleniyor...</h3>
+        <div class="player-list" id="waiting-players"></div>
+        <button id="start-btn" style="display:none; background-color: #2e7d32; border-color:#1b5e20;" onclick="startRound()">Daireyi Çiz & Başla</button>
+    </div>
+
+    <div id="game-screen" class="panel">
+        <div class="status-bar">
+            <div id="round-display">Tur: 1/10</div>
+            <button id="host-skip-btn" class="skip-btn" onclick="skipTurnManually()">⏭️ Sırayı Atla</button>
+        </div>
+
+        <div id="turn-status">Yükleniyor...</div>
+        <div class="player-list" id="ingame-players"></div>
+
+        <div id="live-stopwatch" class="live-stopwatch">0.0 sn</div>
+
+        <div class="arena-container" id="arena-container">
+            <div id="spectator-msg" style="position:absolute; top: 10px; font-weight:bold; color:#1b5e20; z-index:5; display:none;">
+                <span id="active-player-name"></span> Kaytanı Sarıyor...
+            </div>
+            <div class="topac-wrapper topac-yellow" id="master-topac">
+                <div class="topac-head"></div>
+                <div class="topac-body"></div>
+                <div class="topac-nail"></div>
+            </div>
+        </div>
+
+        <div class="report-text" id="report-view">Sıranızı Bekleyin...</div>
+
+        <div id="aim-area">
+            <span style="font-size: 0.8rem; font-weight: bold; color: #558b2f;">KAYTAN (İP) ÇEKME GÜCÜ</span>
+            <div class="aim-container">
+                <div class="aim-zone zone-miss"></div>
+                <div class="aim-zone zone-hit"></div>
+                <div class="aim-zone zone-perfect"></div>
+                <div class="aim-zone zone-hit"></div>
+                <div class="aim-zone zone-miss"></div>
+                <div class="pointer" id="aim-pointer"></div>
+            </div>
+            <button id="shoot-btn" onclick="triggerShoot()">KAYTANI ÇEK (FIRLAT)!</button>
+        </div>
+
+        <div style="font-size: 0.8rem; color: #558b2f; margin-top: 15px; text-align: left; padding: 10px; background: #f1f8e9; border-radius: 8px;">
+            <b>Dönüş Süreleri ve Puanlama:</b><br>
+            🟢 <b>Sinek:</b> Mükemmel güç! Topaç <b>10 saniye</b> döner <b>(10 Puan)</b>.<br>
+            🟡 <b>Gafa Salladı:</b> Orta güç. Topaç <b>5 saniye</b> yalpalayarak döner <b>(5 Puan)</b>.<br>
+            🔴 <b>Kabak Çaldı:</b> Dönemez ve yan yatar <b>(0 Puan)</b>.
+        </div>
+    </div>
+
+    <div id="result-screen" class="panel">
+        <h2 style="color: #e65100;">10 Tur Tamamlandı!</h2>
+        <h3 id="overall-winner" style="color:#33691e; font-size: 1.5rem; margin-top:10px;"></h3>
+        
+        <div class="table-wrapper">
+            <table id="result-table">
+                <thead>
+                    <tr>
+                        <th>Sıra</th>
+                        <th>Oyuncu</th>
+                        <th>Toplam Puan</th>
+                    </tr>
+                </thead>
+                <tbody id="result-body"></tbody>
+            </table>
+        </div>
+        
+        <button id="new-game-btn" style="display:none;" onclick="resetWholeGame()">Yeniden Meydan Kur (Rövanş)</button>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyBqYTVJcdJQb83qCWpkjFd2H2J3f8UYtXs",
+          authDomain: "dijital-mangala-fc434.firebaseapp.com",
+          databaseURL: "https://dijital-mangala-fc434-default-rtdb.firebaseio.com",
+          projectId: "dijital-mangala-fc434",
+          storageBucket: "dijital-mangala-fc434.firebasestorage.app",
+          messagingSenderId: "901348106095",
+          appId: "1:901348106095:web:1dd4bba92b52493f71929a"
+        };
+        
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        let roomRef;
+        let myName = "";
+        let roomCode = "";
+        
+        let pointerInterval = null; 
+        let pointerPos = 0;
+        let pointerDir = 1;
+        let timerInterval = null;
+        let isShooting = false; 
+        let actionLock = false; 
+
+        // Renk paletimiz
+        const colorNames = ['yellow', 'blue', 'red', 'green'];
+
+        let gameState = {
+            status: "waiting", 
+            host: "",
+            turnOrder: [],
+            currentTurnIndex: 0,
+            round: 1,
+            maxRounds: 10, 
+            lastReport: "Daire hazır, atış bekleniyor!",
+            spinType: "", 
+            lastShooter: "",
+            endTime: 0,
+            spinStartTime: 0,
+            spinDurationSec: 0,
+            players: {}
+        };
+
+        function getPlayerColorName(playerName, turnOrderArray) {
+            if (!turnOrderArray) return 'yellow';
+            let idx = turnOrderArray.indexOf(playerName);
+            if (idx === -1) return 'yellow';
+            return colorNames[idx % 4];
+        }
+
+        function joinRoom() {
+            let rawName = document.getElementById('username-input').value.trim();
+            roomCode = document.getElementById('room-input').value.trim();
+
+            if (!rawName || !roomCode) { alert("Lütfen adınızı ve oda kodunu girin!"); return; }
+
+            roomRef = database.ref('topactekli/' + roomCode);
+
+            roomRef.once('value', snapshot => {
+                let data = snapshot.val();
+                
+                if (!data || data.status === "gameover" || !data.players) {
+                    myName = rawName;
+                    let freshState = {
+                        status: "waiting",
+                        host: myName,
+                        turnOrder: [],
+                        currentTurnIndex: 0,
+                        round: 1,
+                        maxRounds: 10,
+                        lastReport: "Daire hazır!",
+                        endTime: 0,
+                        spinStartTime: 0,
+                        spinDurationSec: 0,
+                        spinType: "",
+                        players: {}
+                    };
+                    freshState.players[myName] = { score: 0 };
+                    
+                    roomRef.set(freshState).then(() => {
+                        document.getElementById('login-screen').style.display = 'none';
+                        roomRef.child('players').child(myName).onDisconnect().remove();
+                        listenToRoom();
+                    });
+                } 
+                else if (data.status === "waiting") {
+                    myName = rawName;
+                    if (data.players && data.players[myName]) {
+                        myName = myName + Math.floor(Math.random() * 100);
+                    }
+                    roomRef.child('players').child(myName).set({ score: 0 }).then(() => {
+                        document.getElementById('login-screen').style.display = 'none';
+                        roomRef.child('players').child(myName).onDisconnect().remove();
+                        listenToRoom();
+                    });
+                } 
+                else {
+                    alert("Oyun şu an oynanıyor! Lütfen bitmesini bekleyin.");
+                    return;
+                }
+            });
+        }
+
+        function listenToRoom() {
+            roomRef.on('value', snapshot => {
+                let data = snapshot.val();
+                if (!data) return;
+                
+                if (data.players) {
+                    let pNames = Object.keys(data.players);
+                    if (pNames.length > 0 && (!data.host || !data.players[data.host])) {
+                        if (myName === pNames[0]) roomRef.update({ host: myName });
+                    }
+                }
+
+                gameState = data;
+                
+                if (gameState.status === "playing" || gameState.status === "waiting") {
+                    actionLock = false; 
+                    isShooting = false; 
+                }
+
+                updateUI();
+                checkAutomatedEvents();
+            });
+        }
+
+        function updateUI() {
+            if (!gameState.players) return; 
+            
+            let actualHost = gameState.host;
+            let pNames = Object.keys(gameState.players);
+            let tOrder = gameState.turnOrder ? (Array.isArray(gameState.turnOrder) ? gameState.turnOrder : Object.values(gameState.turnOrder)) : [];
+
+            if (gameState.status === "waiting") {
+                document.getElementById('game-screen').style.display = 'none';
+                document.getElementById('result-screen').style.display = 'none';
+                document.getElementById('waiting-screen').style.display = 'block';
+                
+                let pList = document.getElementById('waiting-players');
+                pList.innerHTML = "";
+                pNames.forEach(p => {
+                    pList.innerHTML += `<span class="player-badge">${p} ${p === actualHost ? '(Kurucu)' : ''}</span>`;
+                });
+
+                if (myName === actualHost && pNames.length > 1) {
+                    document.getElementById('waiting-text').innerText = "Oyuncular Tamam! 10 Turluk Daireyi Çizebilirsiniz.";
+                    document.getElementById('start-btn').style.display = 'inline-block';
+                } else {
+                    document.getElementById('waiting-text').innerText = `Kurucu (${actualHost})'nun başlatması bekleniyor...`;
+                    document.getElementById('start-btn').style.display = 'none';
+                }
+            }
+            else if (gameState.status === "playing" || gameState.status === "spinning") {
+                document.getElementById('waiting-screen').style.display = 'none';
+                document.getElementById('result-screen').style.display = 'none';
+                document.getElementById('game-screen').style.display = 'block';
+                
+                document.getElementById('round-display').innerText = `Tur: ${gameState.round} / ${gameState.maxRounds}`;
+                document.getElementById('report-view').innerText = gameState.lastReport;
+
+                if (myName === actualHost) {
+                    document.getElementById('host-skip-btn').style.display = 'inline-block';
+                } else {
+                    document.getElementById('host-skip-btn').style.display = 'none';
+                }
+
+                let activePlayer = tOrder[gameState.currentTurnIndex];
+                
+                let inGamePList = document.getElementById('ingame-players');
+                inGamePList.innerHTML = "";
+                tOrder.forEach((p, idx) => {
+                    let d = gameState.players[p];
+                    if(!d) return;
+                    let pColor = colorNames[idx % 4];
+                    let cStr = "player-badge";
+                    if (p === activePlayer) cStr += ` active-${pColor}`;
+                    inGamePList.innerHTML += `<span class="${cStr}">${p}: ${d.score} Puan</span>`;
+                });
+
+                let topacEl = document.getElementById('master-topac');
+                let stopwatchEl = document.getElementById('live-stopwatch');
+                let aimAreaEl = document.getElementById('aim-area');
+                let specMsg = document.getElementById('spectator-msg');
+                
+                if (gameState.status === "playing") {
+                    let activeColor = getPlayerColorName(activePlayer, tOrder);
+                    
+                    stopwatchEl.style.display = 'none';  
+                    
+                    if (activePlayer === myName && !isShooting) {
+                        // SIRA BENDE
+                        aimAreaEl.style.display = 'block';   
+                        specMsg.style.display = 'none';
+                        topacEl.className = `topac-wrapper topac-${activeColor} anim-winding`;
+                        
+                        document.getElementById('turn-status').innerText = "SIRA SİZDE! İstediğiniz zaman çekin!";
+                        document.getElementById('shoot-btn').disabled = false;
+                        startPointerMovement();
+                    } else {
+                        // SIRA RAKİPTE (CANLI İZLEME MODU)
+                        aimAreaEl.style.display = 'none'; 
+                        specMsg.style.display = 'block';
+                        document.getElementById('active-player-name').innerText = activePlayer;
+                        
+                        topacEl.className = `topac-wrapper topac-${activeColor} anim-winding`;
+                        
+                        document.getElementById('turn-status').innerText = `Sıra ${activePlayer} adlı oyuncuda...`;
+                        document.getElementById('shoot-btn').disabled = true;
+                        stopPointerMovement();
+                    }
+                    stopMainTimerLoop(); 
+                } 
+                else if (gameState.status === "spinning") {
+                    stopPointerMovement();
+                    aimAreaEl.style.display = 'none'; 
+                    specMsg.style.display = 'none';
+                    stopwatchEl.style.display = 'block'; 
+                    
+                    let shooterColor = getPlayerColorName(gameState.lastShooter, tOrder);
+
+                    if (gameState.spinType === "kabak") {
+                        topacEl.className = `topac-wrapper topac-${shooterColor} anim-drop anim-kabak`;
+                    } else {
+                        topacEl.className = `topac-wrapper topac-${shooterColor} anim-drop anim-${gameState.spinType}`;
+                    }
+
+                    document.getElementById('turn-status').innerText = `Topaç Dönüyor! Atıcı: ${gameState.lastShooter}`;
+                    startMainTimerLoop(); 
+                }
+            }
+            else if (gameState.status === "gameover") {
+                document.getElementById('game-screen').style.display = 'none';
+                document.getElementById('waiting-screen').style.display = 'none';
+                document.getElementById('result-screen').style.display = 'block';
+                
+                stopPointerMovement();
+                stopMainTimerLoop();
+                isShooting = false; 
+
+                let tbody = document.getElementById('result-body');
+                tbody.innerHTML = "";
+                
+                let sortedP = pNames.sort((a,b) => gameState.players[b].score - gameState.players[a].score);
+                
+                sortedP.forEach((p, index) => {
+                    let tr = `<tr>
+                        <td>${index + 1}</td>
+                        <td>${p}</td>
+                        <td>${gameState.players[p].score} Puan</td>
+                    </tr>`;
+                    tbody.innerHTML += tr;
+                });
+
+                document.getElementById('overall-winner').innerText = `🏆 ŞAMPİYON: ${sortedP[0]} (${gameState.players[sortedP[0]].score} Puan)`;
+
+                if (myName === actualHost) {
+                    document.getElementById('new-game-btn').style.display = 'inline-block';
+                } else {
+                    document.getElementById('new-game-btn').style.display = 'none';
+                }
+            }
+        }
+
+        function startPointerMovement() {
+            if (pointerInterval) return;
+            pointerInterval = setInterval(() => {
+                pointerPos += (2 * pointerDir); 
+                if (pointerPos >= 100) { pointerPos = 100; pointerDir = -1; }
+                if (pointerPos <= 0) { pointerPos = 0; pointerDir = 1; }
+                let ptr = document.getElementById('aim-pointer');
+                if (ptr) ptr.style.left = pointerPos + "%";
+            }, 15);
+        }
+
+        function stopPointerMovement() {
+            if (pointerInterval) { clearInterval(pointerInterval); pointerInterval = null; }
+        }
+
+        function startRound() {
+            let pNames = Object.keys(gameState.players);
+            let pData = gameState.players;
+            for (let p in pData) { pData[p].score = 0; }
+
+            roomRef.update({
+                status: "playing",
+                turnOrder: pNames, 
+                currentTurnIndex: 0,
+                round: 1,
+                maxRounds: 10,
+                lastReport: "Daire çizildi! Herkes 10'ar kez atış yapacak.",
+                players: pData
+            });
+        }
+
+        function triggerShoot() {
+            if (gameState.status !== "playing" || isShooting) return;
+            
+            isShooting = true; 
+            document.getElementById('shoot-btn').disabled = true;
+            stopPointerMovement();
+
+            let sType = "";
+            let pts = 0;
+            let spinTimeSec = 0;
+            let reportMsg = "";
+
+            if (pointerPos >= 42 && pointerPos <= 58) {
+                sType = "sinek"; pts = 10; spinTimeSec = 10;
+                reportMsg = `🟢 SİNEK! Kusursuz atış! Topaç harika döndü. (+10 Puan)`;
+            } 
+            else if ((pointerPos >= 25 && pointerPos < 42) || (pointerPos > 58 && pointerPos <= 75)) {
+                sType = "gafa"; pts = 5; spinTimeSec = 5;
+                reportMsg = `🟡 GAFA SALLADI! Topaç yalpalayarak durdu. (+5 Puan)`;
+            } 
+            else {
+                sType = "kabak"; pts = 0; spinTimeSec = 1.5; 
+                reportMsg = `🔴 KABAK ÇALDI! Topaç dönemedi... (+0 Puan)`;
+            }
+
+            roomRef.update({
+                status: "spinning",
+                spinType: sType,
+                lastScore: pts, 
+                lastShooter: myName,
+                lastReport: reportMsg,
+                spinStartTime: Date.now(),
+                spinDurationSec: spinTimeSec,
+                endTime: Date.now() + (spinTimeSec * 1000) + 500 
+            });
+        }
+
+        window.skipTurnManually = function() {
+            if (myName !== gameState.host || actionLock) return;
+            let tOrder = gameState.turnOrder ? (Array.isArray(gameState.turnOrder) ? gameState.turnOrder : Object.values(gameState.turnOrder)) : [];
+            let activePlayer = tOrder[gameState.currentTurnIndex];
+            
+            actionLock = true; 
+            advanceTurn(gameState.players, `Kurucu, ${activePlayer} adlı oyuncunun sırasını atladı!`);
+        };
+
+        function checkAutomatedEvents() {
+            let now = Date.now();
+
+            // 1. Kural: Atışı yapan kişi kendi cihazından turu geçirir (Saat farkı donmasını önler)
+            if (gameState.status === "spinning" && myName === gameState.lastShooter && !actionLock) {
+                if (now >= gameState.endTime) {
+                    actionLock = true; 
+                    
+                    let pData = gameState.players;
+                    let targetPlayer = gameState.lastShooter;
+                    
+                    if (pData[targetPlayer]) {
+                        pData[targetPlayer].score += (gameState.lastScore || 0);
+                    }
+                    
+                    advanceTurn(pData, gameState.lastReport);
+                }
+            }
+
+            // 2. Kural (YENİ GÜVENLİK AĞI): Atışı yapan kişinin interneti koparsa diye Kurucu Anti-Donma Koruması
+            if (gameState.status === "spinning" && myName === gameState.host && !actionLock) {
+                // Atış bittikten 3 saniye sonra oyun hala takılıysa kurucu zorla geçirir
+                if (now >= gameState.endTime + 3000) {
+                    actionLock = true;
+                    
+                    let pData = gameState.players;
+                    let targetPlayer = gameState.lastShooter;
+                    if (pData[targetPlayer]) pData[targetPlayer].score += (gameState.lastScore || 0);
+                    
+                    advanceTurn(pData, gameState.lastReport + " (Sistem turu zorla ilerletti)");
+                }
+            }
+        }
+
+        function advanceTurn(pData, reportMsg) {
+            let nextIdx = gameState.currentTurnIndex + 1;
+            let nextRound = gameState.round;
+            let tOrder = Array.isArray(gameState.turnOrder) ? gameState.turnOrder : Object.values(gameState.turnOrder);
+
+            if (nextIdx >= tOrder.length) {
+                nextIdx = 0;
+                nextRound++;
+            }
+
+            if (nextRound > gameState.maxRounds) {
+                roomRef.update({
+                    status: "gameover",
+                    players: pData
+                });
+            } else {
+                roomRef.update({
+                    status: "playing",
+                    players: pData,
+                    currentTurnIndex: nextIdx,
+                    round: nextRound,
+                    lastReport: reportMsg
+                });
+            }
+        }
+
+        function startMainTimerLoop() {
+            if (timerInterval) clearInterval(timerInterval);
+            
+            timerInterval = setInterval(() => {
+                let now = Date.now();
+
+                if (gameState.status === "spinning") {
+                    let elapsed = (now - gameState.spinStartTime) / 1000;
+                    
+                    if (elapsed > gameState.spinDurationSec) elapsed = gameState.spinDurationSec;
+                    if (elapsed < 0) elapsed = 0;
+                    
+                    if (gameState.spinType === "kabak") elapsed = 0;
+
+                    document.getElementById('live-stopwatch').innerText = elapsed.toFixed(1) + " sn";
+                }
+                
+                checkAutomatedEvents();
+            }, 100); 
+        }
+
+        function stopMainTimerLoop() {
+            if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+        }
+
+        function resetWholeGame() {
+            let freshPlayers = {};
+            for (let p in gameState.players) {
+                freshPlayers[p] = { score: 0 };
+            }
+            roomRef.update({
+                status: "waiting",
+                turnOrder: [],
+                currentTurnIndex: 0,
+                round: 1,
+                lastReport: "Daire silindi, yeni oyun bekleniyor.",
+                players: freshPlayers
+            });
+        }
+    </script>
+</body>
+</html>
